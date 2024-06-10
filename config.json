@@ -1,6 +1,9 @@
 {
   "activity": {
     "name": "ДИГИМОНЧИКОВ УРА УРА",
-    "type": "PLAYING"
-  }
+    "type": "Watching"
+  },
+  "server": 1245064046080950483,
+  "owner": 648872681210511371,
+  "prefix": "/"
 }

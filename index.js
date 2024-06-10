@@ -2,15 +2,17 @@
 
 // Библиотеки, файлы, модули
 const env = require('dotenv').config();
-const fs = require('fs')
-const { Client, GatewayIntentBits, ActivityType  } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
+const {Client, GatewayIntentBits, ActivityType} = require('discord.js');
 const config = JSON.parse(fs.readFileSync('./config.json', 'utf-8'));
 
 
 // Глобальные переменные
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
+const client = new Client({intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]});
 const tokenDiscord = process.env.DISCORD_TOKEN;
-const { activity } = config;
+const {activity, server, owner, prefix} = config;
+const src = './src'
 
 // Подтверждение авторизации
 client.once('ready', () => {
@@ -18,6 +20,21 @@ client.once('ready', () => {
     client.user.setActivity(activity.name, {type: ActivityType[activity.type]});
     console.log(`АКТИВНОСТЬ УСТАНОВЛЕНА`);
 });
+
+client.on('messageCreate', msg => {
+    let isCommand = msg.content.startsWith(prefix);
+
+    if (isCommand) {
+        let args = msg.content.split(/ +/);
+        let command = args[0].toLowerCase().substr(args[0].toLowerCase().indexOf(prefix) + 1);
+        console.log(`Команда: ${command}, аргументы: ${args}, исходное сообщение: ${msg.content}, дата создания: ${msg.createdAt}`);
+
+        switch (command) {
+            case 'test':
+                require(`${src}/test.js`).test(msg);
+        }
+    }
+})
 
 
 // Авторизация
