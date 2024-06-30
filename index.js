@@ -5,7 +5,7 @@ const env = require(`dotenv`).config();
 const fs = require(`fs`);
 const path = require(`path`);
 const {Client, GatewayIntentBits, ActivityType} = require(`discord.js`);
-
+const sqlite3 = require('sqlite3').verbose();
 
 // JSON данные
 const config = JSON.parse(fs.readFileSync(`./config.json`, `utf-8`)); // Файл конфигурации
@@ -14,6 +14,7 @@ const LRSmembers = JSON.parse(fs.readFileSync(`./legacy-db/members.json`, `utf-8
 
 
 // Глобальные переменные
+const dbPath = path.resolve(__dirname, 'user_data.db');
 const client = new Client({intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]});
 const tokenDiscord = process.env.DISCORD_TOKEN;
 const {activity, server, owner, prefix} = config; // Формирование объекта config.
@@ -29,6 +30,17 @@ client.once(`ready`, () => {
     console.log(`АКТИВНОСТЬ УСТАНОВЛЕНА`);
 });
 
+
+// Запуск БАЗЫ ДАННЫХ
+const db = require(`${src}/db_setup.js`).launch(sqlite3, `./testDB`);
+require(`${src}/db_setup.js`).addUser(db, 'ronotester', { roles: ['МЕГА АЙДИ РОЛИ 1', 'ОМЕГА АЙДИ РОЛИ 2']});
+require(`${src}/db_setup.js`).getUser(db, 'ronotester', (err, user) => {
+    if (err) {
+        console.error(err);
+    } else {
+        console.log('Данные пользователя:', user);
+    }
+});
 
 /**
  * Обработчик сообщений (команды и обычные).
