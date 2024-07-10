@@ -21,6 +21,7 @@ const {activity, server, owner, prefix} = config; // Формирование о
 const src = `./src` // Путь к скриптам.
 const core = require(`${src}/core_functions.js`); // Функции ядра.
 
+
 /**
  * Подтверждение авторизации
  */
@@ -33,14 +34,17 @@ client.once(`ready`, () => {
 
 // Запуск БАЗЫ ДАННЫХ
 const db = require(`${src}/db_setup.js`).launch(sqlite3, `./testDB`);
-require(`${src}/db_setup.js`).addUser(db, 'ronotester', { roles: ['МЕГА АЙДИ РОЛИ 1', 'ОМЕГА АЙДИ РОЛИ 2']});
-require(`${src}/db_setup.js`).getUser(db, 'ronotester', (err, user) => {
-    if (err) {
-        console.error(err);
-    } else {
-        console.log('Данные пользователя:', user);
-    }
-});
+
+// const checkReg = require(`${src}/db_setup.js`).checkReg();
+
+// require(`${src}/db_setup.js`).addUser(db, 'ronotester');
+// require(`${src}/db_setup.js`).getUser(db, 'ronotester', (err, user) => {
+//     if (err) {
+//         console.error(err);
+//     } else {
+//         console.log('Данные пользователя:', user);
+//     }
+// });
 
 /**
  * Обработчик сообщений (команды и обычные).
@@ -58,10 +62,35 @@ client.on(`messageCreate`, msg => {
                 // Тестовая команда для тестирования функций :)
                 require(`${src}/test.js`).test(msg);
                 break;
+
+            case `register`:
+                require(`${src}/db_setup.js`).checkReg(db, msg.author.id, (err, exists) => {
+                    console.log(`СТАТУС РЕГИСТРАЦИИ: ${exists}`);
+
+                    if (err){
+                        core.throwErr(msg, err);
+                        return
+                    }
+
+                    if (exists == false) {
+                        require(`${src}/db_setup.js`).addUser(db, msg.author.id).then(promise => {
+                            msg.reply(`Успешно зарегестрировал тебя! :3`);
+                        })
+                    } else {
+                        msg.reply(`Уфф... Похоже, что ты уже зарегестрирован! Тебе не надо делать этого второй раз, в любом случае.. :)`)
+                    }
+
+                    return
+                });
+
+
+                break;
+
             case `restore`:
                 // Команда для поиска ролей пользователя в legacy БД и вывода их пользователю. (в дальнейшем с заносом в SQL)
-                let foundRoles = require(`${src}/restore.js`).getRoles(msg, core.throwErr, core.replyLargeMessage, LRSroles, LRSmembers);
+                let [foundRoles, streamHours] = require(`${src}/restore.js`).getRoles(msg, core.throwErr, core.replyLargeMessage, LRSroles, LRSmembers);
                 console.log(foundRoles);
+                console.log(`кол-во часов: ${streamHours}`)
                 break;
             default:
                 // Иная команда

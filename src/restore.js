@@ -5,10 +5,11 @@
  * @param { function } replyLargeMessage - Функция для отправки сообщения превышающего лимит Discord.
  * @param { Object } LRSroles - База данных с legacy ролями.
  * @param { Object } LRSmembers - База данных с legacy пользователями.
- * @returns {Promise<Array>} - Список всех найденных legacy ролей пользователя с цветовыми кодами.\
+ * @returns {Promise<Array>} - Массив из двух элементов: [0]: Список всех найденных legacy ролей пользователя с цветовыми кодами.\
  * Каждый элемент массива: <НАЗВАНИЕ:[c/ЦВЕТ]>.
+ * [1]: Количество стримов на стримах
  */
-async function getRoles(msg, throwErr, replyLargeMessage, LRSroles, LRSmembers) {
+function getRoles(msg, throwErr, replyLargeMessage, LRSroles, LRSmembers) {
 
     /**
      * Конвертирует десятичное число в шестнадцатеричное значение.
@@ -24,7 +25,7 @@ async function getRoles(msg, throwErr, replyLargeMessage, LRSroles, LRSmembers) 
     }
 
     // Роли, которые игнорируются при выводе.
-    blackListed = [
+    let blackListed = [
         `828652142163394560`,
         `828649202976030792`,
         `828650255737815060`,
@@ -36,6 +37,15 @@ async function getRoles(msg, throwErr, replyLargeMessage, LRSroles, LRSmembers) 
         `911542292169498624`,
         `911541977856745492`
     ]
+
+    let streamRoles = {
+        "719437151959384155" : 2,
+        "681307173976145920": 10,
+        "701558179061825646": 20,
+        "706656933121097749" : 30,
+        "909231209190662186" : 60
+
+    }
 
 
     researchID = msg.author.id;
@@ -64,6 +74,17 @@ async function getRoles(msg, throwErr, replyLargeMessage, LRSroles, LRSmembers) 
     }
 
     console.log(`Закончен сбор ролей пользователя`);
+
+    let streamFound = []
+    rolesID.forEach(role => {
+        if (Object.keys(streamRoles).includes(role)) {
+            streamFound.push(streamRoles[role]);
+        }
+    })
+
+    let streamHours = Math.max.apply(Math, streamFound)
+
+    if (streamHours < 0) {streamHours = 0;}
 
     let isFound = rolesID.some(() => true); // Нашлись ли роли и/или пользователь?
     let namesArr = [];
@@ -94,12 +115,14 @@ async function getRoles(msg, throwErr, replyLargeMessage, LRSroles, LRSmembers) 
      */
     if (isOutExist) {
         msg.reply(`Что-то нашёл! Найденные роли:`);
-        replyLargeMessage(msg, namesArr.toString()).catch(err => throwErr(msg, err, [isFound, namesArr.toString(), rolesID.toString()]));
+        replyLargeMessage(msg, namesArr.toString()).catch(err => throwErr(msg, err, [isFound, namesArr.toString(), rolesID.toString()])).then(promise => {
+            msg.reply(`Также посчитал сколько часов ты отсидел на стримах! В твоём случае это ${streamHours} часов!`)
+        });
     } else {
         msg.reply(`Уфф... Похоже, что никаких необычных ролей у Вас не было...`).catch(err => throwErr(msg, err, [isFound, namesArr.toString(), rolesID.toString()]));
     }
 
-    return namesArr;
+    return [namesArr, streamHours];
 }
 
 module.exports = {getRoles}
