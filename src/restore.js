@@ -1,17 +1,20 @@
 /**
- * Поиск в Базе Данных всех ролей пользователя (вызывающего команду) и преобразование их из ID в названия с цветовыми кодами.
+ * Поиск в Базе Данных пользователя и его ролей. Преобразует роли в формат <НАЗВАНИЕ:[c/ЦВЕТ]> и заносит из в Базу Данных.\
+ * Также считает количество часов на стримах и заносит их тоже.
  * @param { Object } msg - Исходное сообщение пользователя.
- * @param { function } throwErr - Обработчик ошибок.
- * @param { function } replyLargeMessage - Функция для отправки сообщения превышающего лимит Discord.
+ * @param { Object } core - Функции ядра.
+ * @param { Object } replies - Пак с ответами пользователю на его языке.
  * @param { Object } LRSroles - База данных с legacy ролями.
  * @param { Object } LRSmembers - База данных с legacy пользователями.
+ * @param { Database } db - База данных пользователей.
+ * @param { function } updateData - Функция обновления базы данных (для записи).
  * @returns {Promise<Array>} - Массив из двух элементов: [0]: Список всех найденных legacy ролей пользователя с цветовыми кодами.\
  * Каждый элемент массива: <НАЗВАНИЕ:[c/ЦВЕТ]>.
  * [1]: Количество стримов на стримах
  */
 const {updateData} = require("./db_setup");
 
-function getRoles(msg, throwErr, replyLargeMessage, LRSroles, LRSmembers, db, updateData) {
+function getRoles(msg, core, replies, LRSroles, LRSmembers, db, updateData) {
 
     /**
      * Конвертирует десятичное число в шестнадцатеричное значение.
@@ -40,12 +43,13 @@ function getRoles(msg, throwErr, replyLargeMessage, LRSroles, LRSmembers, db, up
         `911541977856745492`
     ]
 
+    // Сколько часов стрима даёт каждая из ролей
     let streamRoles = {
-        "719437151959384155" : 2,
+        "719437151959384155": 2,
         "681307173976145920": 10,
         "701558179061825646": 20,
-        "706656933121097749" : 30,
-        "909231209190662186" : 60
+        "706656933121097749": 30,
+        "909231209190662186": 60
 
     }
 
@@ -72,11 +76,15 @@ function getRoles(msg, throwErr, replyLargeMessage, LRSroles, LRSmembers, db, up
             }
         });
     } catch (err) {
-        throwErr(msg, err);
+        core.throwErr(msg, err);
     }
 
     console.log(`Закончен сбор ролей пользователя`);
 
+
+    /**
+     * Считаем количество часов стримов пользователя
+     */
     let streamFound = []
     rolesID.forEach(role => {
         if (Object.keys(streamRoles).includes(role)) {
@@ -86,7 +94,12 @@ function getRoles(msg, throwErr, replyLargeMessage, LRSroles, LRSmembers, db, up
 
     let streamHours = Math.max.apply(Math, streamFound)
 
-    if (streamHours < 0) {streamHours = 0;}
+    if (streamHours < 0) {
+        streamHours = 0;
+    }
+
+
+
 
     let isFound = rolesID.some(() => true); // Нашлись ли роли и/или пользователь?
     let namesArr = [];
@@ -102,11 +115,11 @@ function getRoles(msg, throwErr, replyLargeMessage, LRSroles, LRSmembers, db, up
                 }
             });
         } else {
-            msg.reply(`Не нашёл тебя в базе данных пользователей :(`).catch(err => throwErr(msg, err));
+            msg.reply(replies.restore.not_in_db).catch(err => core.throwErr(msg, err));
             return [];
         }
     } catch (err) {
-        throwErr(msg, err);
+        core.throwErr(msg, err);
     }
 
     let isOutExist = namesArr.some(() => true); // Нашлись ли уникальные роли?
@@ -116,36 +129,46 @@ function getRoles(msg, throwErr, replyLargeMessage, LRSroles, LRSmembers, db, up
      * Вывод сообщения и формирование промиса. Занос данных в базу данных.
      */
     if (isOutExist) {
-        msg.reply(`Что-то нашёл! Найденные роли:`);
-        replyLargeMessage(msg, namesArr.toString()).catch(err => throwErr(msg, err, [isFound, namesArr.toString(), rolesID.toString()])).then(promise => {
-            msg.reply(`Также посчитал сколько часов ты отсидел на стримах! В твоём случае это ${streamHours} часов!`).then(promise =>{
-                updateData(db, researchID, 'roles', namesArr.toString(), throwErr)
+        msg.reply(replies.restore.roles_found);
+        core.replyLargeMessage(msg, namesArr.toString()).catch(err => core.throwErr(msg, err, [isFound, namesArr.toString(), rolesID.toString()])).then(promise => {
+            msg.reply(core.literalsParse(replies.restore.stream_counted, {streamHours: streamHours})).then(promise => {
+
+                /**
+                 * Занос ролей в БД
+                 */
+                updateData(db, researchID, 'roles', namesArr.toString())
                     .then(() => {
-                        msg.reply('✅ Роли занесены в базу данных ✅');
+                        msg.reply(replies.restore.roles_added_to_db);
                     })
                     .catch(err => {
-                        throwErr(msg, err);
+                        core.throwErr(msg, err);
                     });
 
-                updateData(db, researchID, 'stream_hours', streamHours, throwErr)
+                /**
+                 * Занос часов стрима в БД
+                 */
+                updateData(db, researchID, 'stream_hours', streamHours)
                     .then(() => {
-                        msg.reply('✅ Часы стримов занесены в базу данных ✅');
+                        msg.reply(replies.restore.hours_added_to_db);
                     })
                     .catch(err => {
-                        throwErr(msg, err);
+                        core.throwErr(msg, err);
                     });
 
-                updateData(db, researchID, 'restore_complete', true , throwErr)
-                    .then(() => {})
+                /**
+                 * Занос запрета на использование /transfer в БД
+                 */
+                updateData(db, researchID, 'restore_complete', true)
+                    .then(() => {
+                    })
                     .catch(err => {
-                        throwErr(msg, err);
+                        core.throwErr(msg, err);
                     });
             })
         });
     } else {
-        msg.reply(`Уфф... Похоже, что никаких необычных ролей у Вас не было...`).catch(err => throwErr(msg, err, [isFound, namesArr.toString(), rolesID.toString()]));
+        msg.reply(replies.restore.no_uniq).catch(err => core.throwErr(msg, err, [isFound, namesArr.toString(), rolesID.toString()]));
     }
-
 
 
     return [namesArr, streamHours];

@@ -1,0 +1,19 @@
+{
+  "registration_complete":"Successfully registered you! :3",
+  "already_registred":"Hmm... It looks like you're already registered! You don't have to do it a second time, anyway.. :)",
+  "data_already_transfered": "Your data is already transferred! You don't have to do it twice",
+  "command_not_found": "Command not found... Check that the input is correct",
+  "not_in_db": "Haven't found you in database :(",
+  "restore": {
+    "roles_found": "Found something! Here it is:",
+    "stream_counted": "Also counted livestream hours! In your case that's {{streamHours}} hours!",
+    "roles_added_to_db": "✅ Roles listed to database successfully ✅",
+    "hours_added_to_db": "✅ Livestream hours listed to database successfully ✅",
+    "no_uniq": "Ouch... Looks like you didn't have any unique roles..."
+  },
+  "change_language": {
+    "no_args": "Specify the language you want to put in the arguments!\nList of available languages: {{available_languages}}",
+    "success": "Great! I have successfully changed your language to {{language}}! Starting the next command it will be used.",
+    "failed": "Ouch... I couldn't change the language... Are you sure it exists?\nList of available languages: {{available_languages}}"
+  }
+}

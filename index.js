@@ -9,7 +9,6 @@ const sqlite3 = require('sqlite3').verbose();
 
 // JSON данные
 const config = JSON.parse(fs.readFileSync(`./config.json`, `utf-8`)); // Файл конфигурации
-const rus = JSON.parse(fs.readFileSync(`./localization/RUS.json`), `utf-8`);
 const LRSroles = JSON.parse(fs.readFileSync(`./legacy-db/roles.json`, `utf-8`)); // БД с legacy ролями
 const LRSmembers = JSON.parse(fs.readFileSync(`./legacy-db/members.json`, `utf-8`)); // БД с legacy пользователями
 
@@ -24,6 +23,13 @@ const core = require(`${src}/core_functions.js`); // Функции ядра.
 const database = require(`${src}/db_setup.js`); // Функции базы данных.
 const unregistredMessage = `Уфф... Похоже, что ты не зарегестрирован, чтобы использовать эту команду. Сделай это при помощи /register`
 
+// Пути к файлам локализации для всех языков.
+const language_associations = {
+    'RUS': JSON.parse(fs.readFileSync(`./localization/RUS.json`), `utf-8`),
+    'ENG': JSON.parse(fs.readFileSync(`./localization/ENG.json`, 'utf-8'))
+}
+
+
 /**
  * Подтверждение авторизации
  */
@@ -37,9 +43,7 @@ client.once(`ready`, () => {
 // Запуск БАЗЫ ДАННЫХ
 const db = database.launch(sqlite3, `./testDB`);
 
-// const checkReg = require(`${src}/db_setup.js`).checkReg();
-
-// require(`${src}/db_setup.js`).addUser(db, 'ronotester');
+// Вывод информации о Ronopoldo
 require(`${src}/db_setup.js`).getUser(db, '648872681210511371', (err, user) => {
     if (err) {
         console.error(err);
@@ -57,51 +61,90 @@ client.on(`messageCreate`, msg => {
         let args = msg.content.split(/ +/);
         let iniciator = msg.author.id;
         let command = args[0].toLowerCase().substr(args[0].toLowerCase().indexOf(prefix) + 1); // Сама команда (без аргументов и префикса)
-        console.log(`Команда: ${command}, аргументы: ${args}, исходное сообщение: ${msg.content}, дата создания: ${msg.createdAt}`);
+        console.log(`Команда: ${command}, аргументы: ${args}, исходное сообщение: ${msg.content}, дата создания: ${msg.createdAt}, Инициатор: ${iniciator}`);
 
-        switch (command) {
-            //Все case должны быть написаны с маленькой буквы.
-            case `test`:
-                // Тестовая команда для тестирования функций :)
-                require(`${src}/test.js`).test(msg);
-                break;
+        // Проверка в БД чтобы установить язык. Если пользователь не зареган, то берётся язык от пользователя default (русский)
+        database.checkReg(db, iniciator).then(isExist => {
+            if (isExist == true) {
+                langIniciator = iniciator;
+            } else {
+                langIniciator = `default`;
+            }
 
-            case `register`:
-                // Команда для регистрации пользователя.
-                database.checkReg(db, iniciator).then(exists => {
-                    console.log(`LOAL: ${exists}`)
-                    if (exists == false) {
-                        database.addUser(db, iniciator).then(promise => {
-                            msg.reply(`Успешно зарегестрировал тебя! :3`);
-                        })
-                    } else {
-                        msg.reply(`Уфф... Похоже, что ты уже зарегестрирован! Тебе не надо делать этого второй раз, в любом случае.. :)`)
-                    }
-                });
-                break;
+            // Берём язык из базы данных
+            database.getUserData(db, langIniciator, 'preferred_language').then(language => {
 
-            case `restore`:
-                // Команда для поиска ролей пользователя в legacy БД и вывода их пользователю с заносом в SQL.
-                database.checkReg(db, iniciator).then(exists => {
-                    if (exists == true) {
-                        if (database.getUserData(db, iniciator, 'restore_complete', core.throwErr).then(done => {
-                            if (done == false) {
-                                let [foundRoles, streamHours] = require(`${src}/restore.js`).getRoles(msg, core.throwErr, core.replyLargeMessage, LRSroles, LRSmembers, db, database.updateData);
-                                console.log(foundRoles);
-                                console.log(`кол-во часов: ${streamHours}`)
-                            } else { msg.reply('Твои данные уже перенесены! Тебе не нужно делать это повторно.')}
-                        })) ;
-                    } else {
-                        msg.reply(unregistredMessage)
-                    }
-                });
-                break;
+                let replies = language_associations[language]; // Переменная со всеми репликами
+                console.log(`ЯЗЫК ПОЛЬЗОВАТЕЛЯ: ${language}\nЯзык получен от ${langIniciator}`);
 
-            default:
-                // Иная команда
-                msg.reply(`Команда не найдена... Проверьте правильность ввода`).catch(err => core.throwErr(msg, err));
+                switch (command) {
+                    //Все case должны быть написаны с маленькой буквы.
+                    case `test`:
+                        // Тестовая команда для тестирования функций :)
+                        require(`${src}/test.js`).test(msg);
+                        break;
+
+                    case `register`:
+                        // Команда для регистрации пользователя.
+                        database.checkReg(db, iniciator).then(exists => {
+                            console.log(`LOAL: ${exists}`)
+                            if (exists == false) {
+                                database.addUser(db, iniciator).then(promise => {
+                                    msg.reply(replies.registration_complete);
+                                })
+                            } else {
+                                msg.reply(replies.already_registred)
+                            }
+                        });
+                        break;
+
+                    case `restore`:
+                        // Команда для поиска ролей пользователя в legacy БД и вывода их пользователю с заносом в SQL.
+                        database.checkReg(db, iniciator).then(exists => {
+                            if (exists == true) {
+                                if (database.getUserData(db, iniciator, 'restore_complete').then(done => {
+                                    //Проверка того, переносил ли пользователь роли раньше
+                                    if (done == false) {
+                                        let [foundRoles, streamHours] = require(`${src}/restore.js`).getRoles(msg, core, replies, LRSroles, LRSmembers, db, database.updateData);
+                                        console.log(foundRoles);
+                                        console.log(`кол-во часов: ${streamHours}`)
+                                    } else {
+                                        msg.reply(replies.data_already_transfered)
+                                    }
+                                })) ;
+                            } else {
+                                msg.reply(unregistredMessage)
+                            }
+                        });
+                        break;
+
+                    case `language`:
+                        // Команда для смены языка интерфейса
+                        database.checkReg(db, iniciator).then(exists => {
+                            if (exists == true) {
+                                require(`${src}/change_language.js`).change(args, db, core, database, replies, msg, iniciator, language_associations)
+                            } else {
+                                msg.reply(unregistredMessage)
+                            }
+                        });
+                        break;
+
+
+                    default:
+                        // Иная команда
+                        msg.reply(replies.command_not_found).catch(err => core.throwErr(msg, err));
+                }
+            });
+        });
+    }
+
+    if (msg.content == '$create_test_user'){
+        if (msg.author.id == "648872681210511371") {
+            database.addUser(db, 'default');
+            msg.reply('Готово');
         }
     }
+
 })
 
 

@@ -13,15 +13,15 @@ const src = `./`; // Путь к скриптам.
  * @param { any } [extra] - Любая дополнительная информация (опционально).
  * @returns {Promise<void>}
  */
-async function throwErr(msg, err, extra = 'Отсутствует...') {
+async function throwErr(msg, err, extra = 'NONE...') {
     console.log(`ERR_${err}`);
 
     // Проверка экстра информации на длину (меньше 1024 симоволов)
     if (extra.toString().length > 1024) {
-        extra = 'Слишком велика для отображения...';
+        extra = 'Too large to display...';
     }
 
-    msg.reply(`Произошла непредвиденная ошибка :(\nКод ошибки: ${err}\nДополнительная информация: ${extra.toString()}`);
+    msg.reply(`UNEXPECTED ERROR :(\nError code: ${err}\nExtra information: ${extra.toString()}`);
 }
 
 
@@ -52,5 +52,20 @@ async function replyLargeMessage(msg, content) {
     }
 }
 
+/**
+ * Функция для парсинга литералов в сообщении expression. Значения в expression указываются в двойных фигурных скобках. \
+ * Например, {{value}}.
+ * @param { String } expression - Оригинальное сообщение с литералами.
+ * @param { Object } valueObj - Объект с литералами из expression и их значения.
+ * @returns { String } - Преобразованная строка со вставленными значениями.
+ */
+function literalsParse(expression, valueObj) {
+    const templateMatcher = /{{\s?([^{}\s]*)\s?}}/g;
+    let text = expression.replace(templateMatcher, (substring, value, index) => {
+        value = valueObj[value];
+        return value;
+    });
+    return text
+}
 
-module.exports = {throwErr, replyLargeMessage}
+module.exports = {throwErr, replyLargeMessage, literalsParse}
