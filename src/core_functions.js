@@ -4,6 +4,7 @@
  Изменять очень аккуратно!
  */
 
+const src = `./`; // Путь к скриптам.
 
 /**
  * Обработчик ошибок и форматированный вывод их пользователю.
@@ -50,5 +51,6 @@ async function replyLargeMessage(msg, content) {
         await msg.channel.send(part);
     }
 }
+
 
 module.exports = {throwErr, replyLargeMessage}

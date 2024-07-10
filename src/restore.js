@@ -9,7 +9,9 @@
  * Каждый элемент массива: <НАЗВАНИЕ:[c/ЦВЕТ]>.
  * [1]: Количество стримов на стримах
  */
-function getRoles(msg, throwErr, replyLargeMessage, LRSroles, LRSmembers) {
+const {updateData} = require("./db_setup");
+
+function getRoles(msg, throwErr, replyLargeMessage, LRSroles, LRSmembers, db, updateData) {
 
     /**
      * Конвертирует десятичное число в шестнадцатеричное значение.
@@ -111,16 +113,40 @@ function getRoles(msg, throwErr, replyLargeMessage, LRSroles, LRSmembers) {
     console.log(`Закончено преобразование ролей в текст`);
 
     /**
-     * Вывод сообщения и формирование промиса.
+     * Вывод сообщения и формирование промиса. Занос данных в базу данных.
      */
     if (isOutExist) {
         msg.reply(`Что-то нашёл! Найденные роли:`);
         replyLargeMessage(msg, namesArr.toString()).catch(err => throwErr(msg, err, [isFound, namesArr.toString(), rolesID.toString()])).then(promise => {
-            msg.reply(`Также посчитал сколько часов ты отсидел на стримах! В твоём случае это ${streamHours} часов!`)
+            msg.reply(`Также посчитал сколько часов ты отсидел на стримах! В твоём случае это ${streamHours} часов!`).then(promise =>{
+                updateData(db, researchID, 'roles', namesArr.toString(), throwErr)
+                    .then(() => {
+                        msg.reply('✅ Роли занесены в базу данных ✅');
+                    })
+                    .catch(err => {
+                        throwErr(msg, err);
+                    });
+
+                updateData(db, researchID, 'stream_hours', streamHours, throwErr)
+                    .then(() => {
+                        msg.reply('✅ Часы стримов занесены в базу данных ✅');
+                    })
+                    .catch(err => {
+                        throwErr(msg, err);
+                    });
+
+                updateData(db, researchID, 'restore_complete', true , throwErr)
+                    .then(() => {})
+                    .catch(err => {
+                        throwErr(msg, err);
+                    });
+            })
         });
     } else {
         msg.reply(`Уфф... Похоже, что никаких необычных ролей у Вас не было...`).catch(err => throwErr(msg, err, [isFound, namesArr.toString(), rolesID.toString()]));
     }
+
+
 
     return [namesArr, streamHours];
 }

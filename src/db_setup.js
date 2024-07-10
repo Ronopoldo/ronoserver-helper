@@ -1,3 +1,5 @@
+const {throwErr} = require("./core_functions");
+
 function launch(sqlite3, dbPath) {
     /**
      * Подключение к Базе Данных
@@ -62,19 +64,67 @@ function getUser(db, userId, callback) {
     });
 }
 
-function checkReg(db, discordId, callback) {
-    const query = 'SELECT COUNT(*) AS count FROM users WHERE discord_id = ?';
 
-    db.get(query, [discordId], (err, row) => {
-        if (err) {
-            console.error('Ошибка при проверке пользователя:', err);
-            return callback(err, null);
-        }
+async function checkReg(db, discordId, throwErr) {
+    return new Promise((resolve, reject) => {
+        const query = 'SELECT COUNT(*) AS count FROM users WHERE discord_id = ?';
 
-        const userExists = row.count > 0;
-        callback(null, userExists);
+        db.get(query, [discordId], function (err, row) {
+            if (err) {
+                throwErr(msg, err);
+                reject(err);
+                return;
+            }
+
+            const userExists = row.count > 0;
+            resolve(userExists);
+        });
     });
 }
 
 
-module.exports = {launch, addUser, getUser, checkReg}
+async function getUserData(db, discordId, column, throwErr) {
+    const query = `SELECT ${column} FROM users WHERE discord_id = ?`;
+
+    return new Promise((resolve, reject) => {
+        db.get(query, [discordId], function(err, row) {
+            if (err) {
+                throwErr(msg, err);
+                reject(err);
+                return;
+            }
+
+            if (!row) {
+                const errorMessage = `Пользователь с discord_id ${discordId} не найден`;
+                throwErr(msg, new Error(errorMessage));
+                reject(new Error(errorMessage));
+                return;
+            }
+
+            const value = row[column];
+            console.log(`Значение ${value} получено из столбца ${column} для пользователя с discord_id ${discordId}`);
+            resolve(value);
+        });
+    });
+}
+
+async function updateData(db, discordId, column, value, throwErr) {
+    const query = `UPDATE users SET ${column} = ? WHERE discord_id = ?`;
+
+    return new Promise((resolve, reject) => {
+        db.run(query, [value, discordId], function(err) {
+            if (err) {
+                throwErr(msg, err);
+                reject(err);
+                return;
+            }
+
+            console.log(`Значение ${value} успешно записано в столбец ${column} для пользователя с discord_id ${discordId}`);
+            resolve();
+        });
+    });
+}
+
+
+
+module.exports = {launch, addUser, getUser, getUserData, checkReg, updateData}

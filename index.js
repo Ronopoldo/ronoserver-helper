@@ -9,6 +9,7 @@ const sqlite3 = require('sqlite3').verbose();
 
 // JSON данные
 const config = JSON.parse(fs.readFileSync(`./config.json`, `utf-8`)); // Файл конфигурации
+const rus = JSON.parse(fs.readFileSync(`./localization/RUS.json`), `utf-8`);
 const LRSroles = JSON.parse(fs.readFileSync(`./legacy-db/roles.json`, `utf-8`)); // БД с legacy ролями
 const LRSmembers = JSON.parse(fs.readFileSync(`./legacy-db/members.json`, `utf-8`)); // БД с legacy пользователями
 
@@ -20,7 +21,8 @@ const tokenDiscord = process.env.DISCORD_TOKEN;
 const {activity, server, owner, prefix} = config; // Формирование объекта config.
 const src = `./src` // Путь к скриптам.
 const core = require(`${src}/core_functions.js`); // Функции ядра.
-
+const database = require(`${src}/db_setup.js`); // Функции базы данных.
+const unregistredMessage = `Уфф... Похоже, что ты не зарегестрирован, чтобы использовать эту команду. Сделай это при помощи /register`
 
 /**
  * Подтверждение авторизации
@@ -33,18 +35,18 @@ client.once(`ready`, () => {
 
 
 // Запуск БАЗЫ ДАННЫХ
-const db = require(`${src}/db_setup.js`).launch(sqlite3, `./testDB`);
+const db = database.launch(sqlite3, `./testDB`);
 
 // const checkReg = require(`${src}/db_setup.js`).checkReg();
 
 // require(`${src}/db_setup.js`).addUser(db, 'ronotester');
-// require(`${src}/db_setup.js`).getUser(db, 'ronotester', (err, user) => {
-//     if (err) {
-//         console.error(err);
-//     } else {
-//         console.log('Данные пользователя:', user);
-//     }
-// });
+require(`${src}/db_setup.js`).getUser(db, '648872681210511371', (err, user) => {
+    if (err) {
+        console.error(err);
+    } else {
+        console.log('Данные пользователя:', user);
+    }
+});
 
 /**
  * Обработчик сообщений (команды и обычные).
@@ -53,6 +55,7 @@ client.on(`messageCreate`, msg => {
     let isCommand = msg.content.startsWith(prefix); // Проверка на то, что сообщение – команда.
     if (isCommand) {
         let args = msg.content.split(/ +/);
+        let iniciator = msg.author.id;
         let command = args[0].toLowerCase().substr(args[0].toLowerCase().indexOf(prefix) + 1); // Сама команда (без аргументов и префикса)
         console.log(`Команда: ${command}, аргументы: ${args}, исходное сообщение: ${msg.content}, дата создания: ${msg.createdAt}`);
 
@@ -64,34 +67,36 @@ client.on(`messageCreate`, msg => {
                 break;
 
             case `register`:
-                require(`${src}/db_setup.js`).checkReg(db, msg.author.id, (err, exists) => {
-                    console.log(`СТАТУС РЕГИСТРАЦИИ: ${exists}`);
-
-                    if (err){
-                        core.throwErr(msg, err);
-                        return
-                    }
-
+                // Команда для регистрации пользователя.
+                database.checkReg(db, iniciator).then(exists => {
+                    console.log(`LOAL: ${exists}`)
                     if (exists == false) {
-                        require(`${src}/db_setup.js`).addUser(db, msg.author.id).then(promise => {
+                        database.addUser(db, iniciator).then(promise => {
                             msg.reply(`Успешно зарегестрировал тебя! :3`);
                         })
                     } else {
                         msg.reply(`Уфф... Похоже, что ты уже зарегестрирован! Тебе не надо делать этого второй раз, в любом случае.. :)`)
                     }
-
-                    return
                 });
-
-
                 break;
 
             case `restore`:
-                // Команда для поиска ролей пользователя в legacy БД и вывода их пользователю. (в дальнейшем с заносом в SQL)
-                let [foundRoles, streamHours] = require(`${src}/restore.js`).getRoles(msg, core.throwErr, core.replyLargeMessage, LRSroles, LRSmembers);
-                console.log(foundRoles);
-                console.log(`кол-во часов: ${streamHours}`)
+                // Команда для поиска ролей пользователя в legacy БД и вывода их пользователю с заносом в SQL.
+                database.checkReg(db, iniciator).then(exists => {
+                    if (exists == true) {
+                        if (database.getUserData(db, iniciator, 'restore_complete', core.throwErr).then(done => {
+                            if (done == false) {
+                                let [foundRoles, streamHours] = require(`${src}/restore.js`).getRoles(msg, core.throwErr, core.replyLargeMessage, LRSroles, LRSmembers, db, database.updateData);
+                                console.log(foundRoles);
+                                console.log(`кол-во часов: ${streamHours}`)
+                            } else { msg.reply('Твои данные уже перенесены! Тебе не нужно делать это повторно.')}
+                        })) ;
+                    } else {
+                        msg.reply(unregistredMessage)
+                    }
+                });
                 break;
+
             default:
                 // Иная команда
                 msg.reply(`Команда не найдена... Проверьте правильность ввода`).catch(err => core.throwErr(msg, err));
